@@ -1,49 +1,57 @@
 -- Setup
 local lines_csv = {}
-local lines_lua = {}
+
+local lua_content = (function ()
+    local file = io.open("actions.lua", "r")    --[[@cast file file*]]
+    local content = file:read"*a" --[[@cast content string]]
+    io.close(file)
+    return content
+end)()
 
 do -- Generate contents
     -- Get table of actions to work with
+    ---@diagnostic disable-next-line: lowercase-global
     actions = {}
-    dofile("actions.lua")
+    dofile"actions.lua"
 
     -- String to remove from all actions, meant for mod prefixes.
-    local namespace = "copis_things_"
+    local namespace = "examplemod_"
 
     -- Iterate over actions
-    for _, action in ipairs(actions) do
+    for i=1,#actions do
+        local action = actions[i]
 
-        -- Generate translation keys
-        local keys = {
-            name = table.concat({ "actionname_", action.id:lower():gsub(namespace, "") }),
-            desc = table.concat({ "actiondesc_", action.id:lower():gsub(namespace, "") })
-        }
+        -- Avoid existing translations
+        if not action.description:match"%$" then
 
-        --[[ Code here to replace the action's name and desc in lines_lua table for when I save it to the file
-        name should be "$" .. keys.name
-        desc should be "$" .. keys.desc
-        ]]
+            -- Generate translation keys for the spell's data
+            local temp_id = action.id:lower():gsub(namespace, "")
+            local keyname = table.concat{ "actionname_", temp_id }
+            local keydesc = table.concat{ "actiondesc_", temp_id }
 
-        -- Save translation keys and english translations to be written to csv
-        table.insert(lines_csv, table.concat({ keys.name, ",", action.name, ",,,,,,,,,,,,\n" }))
-        table.insert(lines_csv, table.concat({ keys.desc, ",", action.description, ",,,,,,,,,,,,\n" }))
+            -- Swap contents of file to use newly created keys
+            lua_content = lua_content:gsub(table.concat{'"', action.name, '"'},         table.concat{'"$', keyname, '"'})
+            lua_content = lua_content:gsub(table.concat{'"', action.description, '"'},  table.concat{'"$', keydesc, '"'})
+
+            -- Add new keys to the translations csv table
+            lines_csv[#lines_csv+1] = table.concat({ keyname, ',"', action.name,         '",,,,,,,,,,,,\n' })
+            lines_csv[#lines_csv+1] = table.concat({ keydesc, ',"', action.description,  '",,,,,,,,,,,,\n' })
+
+        end
     end
 end
 
 do -- Write generated csv file
-    local output = io.open("actions.csv", "w+")
+    local output = io.open("actions.csv", "w+") --[[@cast output file*]]
     io.output(output)
-    for _, line in ipairs(lines_csv) do
-        io.write(line)
+    for i=1,#lines_csv do
+        io.write(lines_csv[i])
     end
     io.close(output)
 end
 
 do -- Write edited lua file
-    local output = io.open("actions_new.lua", "w+")
-    io.output(output)
-    for _, line in ipairs(lines_lua) do
-        io.write(line)
-    end
-    io.close(output)
+    io.output"actions_new.lua"
+    io.write(lua_content)
+    io.close()
 end
